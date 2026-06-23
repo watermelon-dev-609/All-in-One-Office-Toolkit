@@ -1,0 +1,7 @@
+/* Dark theme overrides — Obsidian variant.
+   Main styling is in default.qss. Colors from theme_manager.py DARK_PALETTE. */
+
+/* Subtle top border accent on main window */
+QMainWindow {
+    border-top: 2px solid ${accent};
+}

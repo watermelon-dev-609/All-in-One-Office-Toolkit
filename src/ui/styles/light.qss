@@ -1,0 +1,13 @@
+/* Light theme overrides — Ivory variant.
+   Main styling is in default.qss. Colors from theme_manager.py LIGHT_PALETTE. */
+
+/* Subtle top border accent on main window */
+QMainWindow {
+    border-top: 2px solid ${accent};
+}
+
+/* Make disabled state more visible on light bg */
+QPushButton:disabled {
+    background-color: ${bg_tertiary};
+    color: ${text_tertiary};
+}

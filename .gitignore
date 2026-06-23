@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+*.spec.bak
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Runtime data
+data/
+!data/.gitkeep
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Build artifacts
+output/
+*.exe
+*.msi
+*.zip
+!build/resources/*.ico

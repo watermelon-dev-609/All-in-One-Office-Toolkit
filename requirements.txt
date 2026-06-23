@@ -1,0 +1,32 @@
+# Core UI Framework
+PySide6>=6.9.0
+
+# Image Processing
+Pillow>=12.0.0
+opencv-python-headless>=4.10.0
+scikit-image>=0.25.0
+
+# PDF Processing
+pdfplumber>=0.11.0
+pikepdf>=9.0.0
+PyPDF2>=3.0.0
+
+# Office Documents (for later phases)
+python-docx>=1.2.0
+openpyxl>=3.1.5
+python-pptx>=1.0.0
+
+# AI / ML (for later phases)
+# onnxruntime>=1.26.0
+# llama-cpp-python>=0.3.0
+# faster-whisper>=1.0.0
+# transformers>=4.47.0
+
+# Utilities
+pyyaml>=6.0
+loguru>=0.7.0
+chardet>=5.0.0
+qrcode>=8.0.0
+pyzbar>=0.1.9
+rembg>=0.2.0
+requests>=2.32.0
