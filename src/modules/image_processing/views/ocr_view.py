@@ -1,16 +1,18 @@
-"""OCR text extraction UI view."""
+"""OCR text extraction UI view — clean layout."""
 
+import os
 from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox,
-    QGroupBox, QFormLayout, QSplitter, QTextEdit,
+    QGroupBox, QFormLayout, QFrame, QScrollArea,
 )
 from PySide6.QtCore import Qt
 
 from src.ui.components.drop_zone import DropZone
 from src.ui.components.file_list_widget import FileListWidget
 from src.ui.components.task_progress_widget import TaskProgressWidget
+from src.ui.components.output_path_widget import OutputPathWidget
 from src.core.task_queue import TaskQueue
 from src.core.task_worker import TaskItem
 
@@ -23,46 +25,67 @@ class OCRView(QWidget):
         self._queue = TaskQueue()
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
         self._drop_zone = DropZone()
         self._drop_zone.files_dropped.connect(self._on_files_added)
         layout.addWidget(self._drop_zone)
 
-        splitter = QSplitter(Qt.Vertical)
-        self._file_list = FileListWidget()
-        splitter.addWidget(self._file_list)
+        self._output_path = OutputPathWidget()
+        layout.addWidget(self._output_path)
 
-        controls = self._create_controls()
-        splitter.addWidget(controls)
-        splitter.setSizes([300, 100])
-        layout.addWidget(splitter, 1)
+        middle = QHBoxLayout()
+        middle.setSpacing(12)
+
+        self._file_list = FileListWidget()
+        self._file_list.setMinimumWidth(280)
+        self._file_list.setMaximumWidth(400)
+        middle.addWidget(self._file_list)
+
+        settings = self._create_settings()
+        middle.addWidget(settings, 1)
+        layout.addLayout(middle, 1)
 
         self._task_progress = TaskProgressWidget()
+        self._task_progress.setMaximumHeight(200)
         self._task_progress.connect_queue(self._queue)
+        self._queue.task_completed.connect(self._on_done)
         layout.addWidget(self._task_progress)
 
-    def _create_controls(self) -> QWidget:
+    def _create_settings(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
         group = QGroupBox("OCR 设置")
-        layout = QFormLayout(group)
+        form = QFormLayout(group)
+        form.setSpacing(8)
 
         self._lang_combo = QComboBox()
         self._lang_combo.addItems(["中英文混合", "仅中文", "仅英文"])
-        layout.addRow("识别语言:", self._lang_combo)
+        form.addRow("识别语言:", self._lang_combo)
 
         self._format_combo = QComboBox()
         self._format_combo.addItems(["TXT 文本", "JSON 格式"])
-        layout.addRow("输出格式:", self._format_combo)
+        form.addRow("输出格式:", self._format_combo)
+        layout.addWidget(group)
 
-        btn_layout = QHBoxLayout()
+        layout.addStretch()
+
         self._apply_btn = QPushButton("开始文字提取")
         self._apply_btn.setObjectName("primaryBtn")
-        self._apply_btn.setMinimumHeight(36)
+        self._apply_btn.setMinimumHeight(40)
         self._apply_btn.clicked.connect(self._start)
-        btn_layout.addStretch()
-        btn_layout.addWidget(self._apply_btn)
-        layout.addRow("", btn_layout)
+        layout.addWidget(self._apply_btn)
 
-        return group
+        scroll.setWidget(panel)
+        return scroll
 
     def _on_files_added(self, paths: list[str]) -> None:
         image_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
@@ -77,6 +100,7 @@ class OCRView(QWidget):
 
         lang_map = {"中英文混合": ["ch_sim", "en"], "仅中文": ["ch_sim"], "仅英文": ["en"]}
         fmt_map = {"TXT 文本": "txt", "JSON 格式": "json"}
+        output_dir = self._output_path.output_dir or None
 
         for fp in files:
             task = TaskItem(
@@ -85,7 +109,15 @@ class OCRView(QWidget):
                 params={
                     "languages": lang_map.get(self._lang_combo.currentText(), ["ch_sim", "en"]),
                     "output_format": fmt_map.get(self._format_combo.currentText(), "txt"),
+                    "output_dir": output_dir,
                 },
             )
             self._queue.submit(task)
-            self._task_progress.add_task(task.task_id, "ocr_image", fp.name)
+            self._task_progress.add_task(
+                task.task_id, "ocr_image", fp.name,
+                output_dir=output_dir or str(Path(fp).parent / "Output")
+            )
+
+    def _on_done(self, task_id: str, output_paths: list) -> None:
+        if output_paths:
+            self._output_path.set_latest_output(output_paths[0])

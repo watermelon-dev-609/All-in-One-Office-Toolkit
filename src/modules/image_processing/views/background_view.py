@@ -1,11 +1,11 @@
-"""Background removal UI view with output management."""
+"""Background removal UI view — clean layout."""
 
 import os
 from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QCheckBox,
-    QGroupBox, QFormLayout, QSplitter,
+    QGroupBox, QFormLayout, QFrame, QScrollArea,
 )
 from PySide6.QtCore import Qt
 
@@ -25,47 +25,66 @@ class BackgroundView(QWidget):
         self._queue = TaskQueue()
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        top = QVBoxLayout()
         self._drop_zone = DropZone()
         self._drop_zone.files_dropped.connect(self._on_files_added)
-        top.addWidget(self._drop_zone)
-        self._output_path = OutputPathWidget()
-        top.addWidget(self._output_path)
-        layout.addLayout(top)
+        layout.addWidget(self._drop_zone)
 
-        splitter = QSplitter(Qt.Vertical)
+        self._output_path = OutputPathWidget()
+        layout.addWidget(self._output_path)
+
+        middle = QHBoxLayout()
+        middle.setSpacing(12)
+
         self._file_list = FileListWidget()
-        splitter.addWidget(self._file_list)
-        controls = self._create_controls()
-        splitter.addWidget(controls)
-        splitter.setSizes([280, 110])
-        layout.addWidget(splitter, 1)
+        self._file_list.setMinimumWidth(280)
+        self._file_list.setMaximumWidth(400)
+        middle.addWidget(self._file_list)
+
+        settings = self._create_settings()
+        middle.addWidget(settings, 1)
+        layout.addLayout(middle, 1)
 
         self._task_progress = TaskProgressWidget()
+        self._task_progress.setMaximumHeight(200)
         self._task_progress.connect_queue(self._queue)
         self._queue.task_completed.connect(self._on_done)
         layout.addWidget(self._task_progress)
 
-    def _create_controls(self) -> QWidget:
+    def _create_settings(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
         group = QGroupBox("去背景设置")
-        layout = QFormLayout(group)
+        form = QFormLayout(group)
+        form.setSpacing(10)
+
         self._white_bg_check = QCheckBox("输出白底图（否则输出透明 PNG）")
         self._white_bg_check.setChecked(True)
-        layout.addRow("", self._white_bg_check)
-        self._alpha_matting_check = QCheckBox("精细边缘处理（速度较慢）")
-        layout.addRow("", self._alpha_matting_check)
+        form.addRow("", self._white_bg_check)
 
-        btn_layout = QHBoxLayout()
+        self._alpha_matting_check = QCheckBox("精细边缘处理（速度较慢）")
+        form.addRow("", self._alpha_matting_check)
+        layout.addWidget(group)
+
+        layout.addStretch()
+
         self._apply_btn = QPushButton("开始去除背景")
         self._apply_btn.setObjectName("primaryBtn")
-        self._apply_btn.setMinimumHeight(36)
+        self._apply_btn.setMinimumHeight(40)
         self._apply_btn.clicked.connect(self._start)
-        btn_layout.addStretch()
-        btn_layout.addWidget(self._apply_btn)
-        layout.addRow("", btn_layout)
-        return group
+        layout.addWidget(self._apply_btn)
+
+        scroll.setWidget(panel)
+        return scroll
 
     def _on_files_added(self, paths: list[str]) -> None:
         image_exts = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}

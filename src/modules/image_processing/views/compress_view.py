@@ -1,4 +1,4 @@
-"""Image compression UI view with output directory management."""
+"""Image compression UI view — clean horizontal layout."""
 
 import os
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QSpinBox,
     QComboBox, QPushButton, QCheckBox, QGroupBox, QFormLayout,
-    QSplitter,
+    QFrame, QScrollArea,
 )
 from PySide6.QtCore import Qt
 
@@ -19,102 +19,114 @@ from src.core.task_worker import TaskItem
 
 
 class CompressView(QWidget):
-    """View for image compression with output management."""
+    """View for image compression."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._queue = TaskQueue()
-        self._last_output_dir = None
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        # Top bar: Drop zone + output path
-        top = QVBoxLayout()
+        # Top bar
         self._drop_zone = DropZone()
         self._drop_zone.files_dropped.connect(self._on_files_added)
-        top.addWidget(self._drop_zone)
+        layout.addWidget(self._drop_zone)
 
         self._output_path = OutputPathWidget()
-        top.addWidget(self._output_path)
-        layout.addLayout(top)
+        layout.addWidget(self._output_path)
 
-        # Middle: Splitter with file list + controls
-        splitter = QSplitter(Qt.Vertical)
+        # Middle: file list + settings
+        middle = QHBoxLayout()
+        middle.setSpacing(12)
+
         self._file_list = FileListWidget()
-        splitter.addWidget(self._file_list)
+        self._file_list.setMinimumWidth(280)
+        self._file_list.setMaximumWidth(400)
+        middle.addWidget(self._file_list)
 
-        controls = self._create_controls()
-        splitter.addWidget(controls)
-        splitter.setSizes([280, 160])
-        layout.addWidget(splitter, 1)
+        settings = self._create_settings()
+        middle.addWidget(settings, 1)
 
-        # Bottom: Task progress
+        layout.addLayout(middle, 1)
+
+        # Bottom: task progress
         self._task_progress = TaskProgressWidget()
+        self._task_progress.setMaximumHeight(200)
         self._task_progress.connect_queue(self._queue)
-        self._task_progress.open_output_requested.connect(self._open_task_output)
+        self._queue.task_completed.connect(self._on_done)
         layout.addWidget(self._task_progress)
 
-        # Connect queue
         self._task_progress.pause_button.clicked.connect(self._on_pause_resume)
         self._task_progress.cancel_all_button.clicked.connect(self._queue.cancel_all)
         self._task_progress.clear_button.clicked.connect(self._task_progress.clear_completed)
 
-        # Track completions
-        self._queue.task_completed.connect(self._on_task_done)
+    def _create_settings(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
 
-    def _create_controls(self) -> QWidget:
-        group = QGroupBox("压缩设置")
-        layout = QFormLayout(group)
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
-        quality_layout = QHBoxLayout()
+        # Compression settings
+        comp_group = QGroupBox("压缩参数")
+        form = QFormLayout(comp_group)
+        form.setSpacing(8)
+
+        qly = QHBoxLayout()
         self._quality_slider = QSlider(Qt.Horizontal)
         self._quality_slider.setRange(1, 100)
         self._quality_slider.setValue(85)
-        quality_layout.addWidget(self._quality_slider)
+        qly.addWidget(self._quality_slider)
         self._quality_spin = QSpinBox()
         self._quality_spin.setRange(1, 100)
         self._quality_spin.setValue(85)
         self._quality_spin.setSuffix("%")
+        self._quality_spin.setFixedWidth(70)
         self._quality_slider.valueChanged.connect(self._quality_spin.setValue)
         self._quality_spin.valueChanged.connect(self._quality_slider.setValue)
-        quality_layout.addWidget(self._quality_spin)
-        layout.addRow("画质:", quality_layout)
+        qly.addWidget(self._quality_spin)
+        form.addRow("画质:", qly)
 
         self._format_combo = QComboBox()
         self._format_combo.addItems(["保持原格式", "JPG", "PNG", "WebP", "GIF"])
-        layout.addRow("输出格式:", self._format_combo)
+        form.addRow("输出格式:", self._format_combo)
 
-        size_layout = QHBoxLayout()
+        sz = QHBoxLayout()
         self._width_spin = QSpinBox()
         self._width_spin.setRange(0, 10000)
         self._width_spin.setValue(0)
         self._width_spin.setSpecialValueText("不限")
         self._width_spin.setSuffix(" px")
-        size_layout.addWidget(QLabel("宽:"))
-        size_layout.addWidget(self._width_spin)
+        sz.addWidget(QLabel("宽:"))
+        sz.addWidget(self._width_spin)
         self._height_spin = QSpinBox()
         self._height_spin.setRange(0, 10000)
         self._height_spin.setValue(0)
         self._height_spin.setSpecialValueText("不限")
         self._height_spin.setSuffix(" px")
-        size_layout.addWidget(QLabel("高:"))
-        size_layout.addWidget(self._height_spin)
-        layout.addRow("最大尺寸:", size_layout)
+        sz.addWidget(QLabel("高:"))
+        sz.addWidget(self._height_spin)
+        form.addRow("最大尺寸:", sz)
 
         self._lossless_check = QCheckBox("无损压缩（文件可能更大）")
-        layout.addRow("", self._lossless_check)
+        form.addRow("", self._lossless_check)
+        layout.addWidget(comp_group)
 
-        btn_layout = QHBoxLayout()
+        layout.addStretch()
+
         self._compress_btn = QPushButton("开始压缩")
         self._compress_btn.setObjectName("primaryBtn")
-        self._compress_btn.setMinimumHeight(36)
+        self._compress_btn.setMinimumHeight(40)
         self._compress_btn.clicked.connect(self._start_compress)
-        btn_layout.addStretch()
-        btn_layout.addWidget(self._compress_btn)
-        layout.addRow("", btn_layout)
+        layout.addWidget(self._compress_btn)
 
-        return group
+        scroll.setWidget(panel)
+        return scroll
 
     def _on_files_added(self, paths: list[str]) -> None:
         image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif"}
@@ -129,10 +141,7 @@ class CompressView(QWidget):
 
         quality = self._quality_slider.value()
         fmt_text = self._format_combo.currentText()
-        output_format = ""
-        if fmt_text != "保持原格式":
-            output_format = fmt_text.lower()
-
+        output_format = "" if fmt_text == "保持原格式" else fmt_text.lower()
         output_dir = self._output_path.output_dir or None
 
         for file_path in files:
@@ -154,21 +163,9 @@ class CompressView(QWidget):
                 output_dir=output_dir or str(Path(file_path).parent / "Output")
             )
 
-    def _on_task_done(self, task_id: str, output_paths: list) -> None:
-        """When a task completes, update the output path widget."""
+    def _on_done(self, task_id: str, output_paths: list) -> None:
         if output_paths:
             self._output_path.set_latest_output(output_paths[0])
-            self._last_output_dir = output_paths[0]
-            # Mark the task row with the output path
-            self._task_progress.set_output_path(task_id, output_paths)
-
-    def _open_task_output(self, task_id: str, output_paths: list) -> None:
-        """Open the output folder for a completed task."""
-        if output_paths:
-            p = Path(output_paths[0])
-            folder = p.parent if p.is_file() else p
-            if folder.exists():
-                os.startfile(str(folder))
 
     def _on_pause_resume(self) -> None:
         if self._queue.is_paused:
